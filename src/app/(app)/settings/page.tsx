@@ -4,6 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ProfileForm } from "./profile-form";
 import { AvatarUploader } from "./avatar-uploader";
 import { getCurrentProfile } from "@/lib/queries";
+import { isWeb3Enabled } from "@/lib/web3/chains";
+import { Wallet } from "lucide-react";
 
 export const metadata = { title: "Settings" };
 
@@ -52,6 +54,27 @@ export default async function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      {isWeb3Enabled() && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Wallet className="size-4" aria-hidden /> Wallets
+            </CardTitle>
+            <CardDescription>
+              Link an Ethereum wallet to mint your assets as NFTs and prove on-chain ownership.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/settings/wallet"
+              className="inline-flex items-center text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Manage linked wallets →
+            </Link>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

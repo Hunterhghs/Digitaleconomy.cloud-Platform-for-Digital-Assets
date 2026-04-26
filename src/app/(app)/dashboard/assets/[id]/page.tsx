@@ -1,10 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Coins } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
 import { getCategories, getCurrentProfile } from "@/lib/queries";
 import { EditAssetForm } from "./edit-form";
+import { MintRecorder } from "@/components/mint-recorder";
+import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
 
 export const metadata = { title: "Edit asset" };
 
@@ -31,6 +34,26 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
     .map((t: { name: string }) => t.name);
 
   const categories = await getCategories();
+
+  const web3 = isWeb3Enabled();
+  const { data: mintsRaw } = web3
+    ? await supabase
+        .from("mints")
+        .select("id, chain_id, contract_address, token_id, tx_hash, minted_at")
+        .eq("asset_id", id)
+        .order("minted_at", { ascending: false })
+    : { data: null };
+  const mints =
+    (mintsRaw as
+      | {
+          id: string;
+          chain_id: number;
+          contract_address: string;
+          token_id: string;
+          tx_hash: string;
+          minted_at: string;
+        }[]
+      | null) ?? [];
 
   return (
     <div className="container-page max-w-3xl py-10">
@@ -59,6 +82,63 @@ export default async function EditAssetPage({ params }: { params: Promise<{ id: 
           />
         </CardContent>
       </Card>
+
+      {web3 && (
+        <Card className="mt-6">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Coins className="size-4" aria-hidden /> On-chain mints
+              </CardTitle>
+              <CardDescription>
+                Record a mint after you publish this asset as an NFT. The badge appears on the
+                public asset page.
+              </CardDescription>
+            </div>
+            <MintRecorder assetId={asset.id} />
+          </CardHeader>
+          <CardContent>
+            {mints.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No mints recorded yet.</p>
+            ) : (
+              <ul className="space-y-3 text-sm">
+                {mints.map((m) => {
+                  const url = txUrl(m.chain_id, m.tx_hash);
+                  return (
+                    <li
+                      key={m.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">{chainLabel(m.chain_id)}</Badge>
+                          <code className="font-mono text-xs">
+                            {m.contract_address.slice(0, 6)}…{m.contract_address.slice(-4)}
+                          </code>
+                          <span className="text-muted-foreground">#{m.token_id}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Minted {new Date(m.minted_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      {url && (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium underline-offset-4 hover:underline"
+                        >
+                          View transaction →
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

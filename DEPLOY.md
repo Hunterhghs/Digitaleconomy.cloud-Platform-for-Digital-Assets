@@ -70,7 +70,18 @@ After signing up for the first time, run this in Supabase SQL Editor:
 update public.profiles set role = 'admin' where handle = 'your-handle';
 ```
 
-## 8. Post-deploy checklist
+## 8. (Optional) Enable Phase 2 Web3
+
+Web3 features (wallet linking + on-chain mint badges) are gated behind a feature flag and are off by default.
+
+1. In Vercel → Project → **Settings → Environment Variables** add:
+   - `NEXT_PUBLIC_ENABLE_WEB3=true`
+   - `NEXT_PUBLIC_WEB3_CHAIN=base-sepolia` (or `base`, `polygon`, `polygon-amoy`, `ethereum`, `sepolia`)
+2. Apply the Web3 schema to Supabase: run `supabase/migrations/00005_web3.sql`.
+3. Redeploy. The **Wallets** card appears in `/settings`, and the asset edit page shows a **Record on-chain mint** dialog.
+4. To go fully wallet-first later, add `wagmi` + `RainbowKit` and replace the `<WalletConnectButton>` component — the SIWE nonce/verify routes already do all the server work.
+
+## 9. Post-deploy checklist
 
 - [ ] Sign up with email; confirm the verification flow works.
 - [ ] Sign in with Google and GitHub.

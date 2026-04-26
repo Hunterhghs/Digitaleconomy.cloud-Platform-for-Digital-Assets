@@ -73,7 +73,20 @@ The app is designed to deploy on **Vercel** with zero config:
 ## Roadmap
 
 - **Phase 1 (MVP)** — accounts, upload, discovery, downloads, profiles, moderation. ✅ scaffolded.
-- **Phase 2** — wallet linking (SIWE), optional NFT minting, public API.
+- **Phase 2** — wallet linking (SIWE) + on-chain mint records. ✅ scaffolded behind `NEXT_PUBLIC_ENABLE_WEB3=true`.
+- **Phase 3** — public REST API, creator payouts (donations), full RainbowKit/wagmi wallet UX.
+
+### Phase 2: enabling Web3
+
+The Web3 layer is gated by an env flag so the MVP stays lean. To turn it on:
+
+```bash
+# .env.local
+NEXT_PUBLIC_ENABLE_WEB3=true
+NEXT_PUBLIC_WEB3_CHAIN=base-sepolia   # or base, polygon, polygon-amoy, ethereum, sepolia
+```
+
+Then apply the Web3 migration (`supabase/migrations/00005_web3.sql`) and visit `/settings/wallet` to link your first wallet via Sign-In With Ethereum. Once a wallet is linked, the asset edit page exposes a **Record on-chain mint** dialog where you can paste tx details after minting through any contract; a verified mint badge will then appear on the public asset page.
 
 ## License
 

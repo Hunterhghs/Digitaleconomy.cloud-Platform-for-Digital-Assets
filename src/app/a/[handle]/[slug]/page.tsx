@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Download, Calendar, FileText, Eye } from "lucide-react";
+import { Download, Calendar, FileText, Eye, Coins } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
 import { ASSET_LICENSES, siteConfig } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { getAssetByOwnerAndSlug, publicPreviewUrl } from "@/lib/queries";
+import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
 import { format } from "date-fns";
 
 type Params = { handle: string; slug: string };
@@ -80,6 +81,20 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
   const license = ASSET_LICENSES.find((l) => l.id === asset.license);
   const previewUrl = publicPreviewUrl(asset.thumbnail_path);
   const category = (asset as unknown as { category: { name: string; slug: string } | null }).category;
+
+  const web3 = isWeb3Enabled();
+  const { data: mintRow } = web3
+    ? await supabase
+        .from("mints")
+        .select("chain_id, contract_address, token_id, tx_hash")
+        .eq("asset_id", asset.id)
+        .order("minted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+  const mint = mintRow as
+    | { chain_id: number; contract_address: string; token_id: string; tx_hash: string }
+    | null;
 
   return (
     <div className="container-page py-8">
@@ -156,11 +171,23 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
               )}
             </div>
             <h1 className="mt-1 text-2xl font-semibold leading-tight">{asset.title}</h1>
-            {asset.status === "draft" ? (
-              <Badge variant="warning" className="mt-2">
-                Draft (only visible to you)
-              </Badge>
-            ) : null}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {asset.status === "draft" ? (
+                <Badge variant="warning">Draft (only visible to you)</Badge>
+              ) : null}
+              {mint ? (
+                <a
+                  href={txUrl(mint.chain_id, mint.tx_hash) ?? "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex"
+                >
+                  <Badge variant="secondary" className="gap-1">
+                    <Coins className="size-3" aria-hidden /> Minted on {chainLabel(mint.chain_id)}
+                  </Badge>
+                </a>
+              ) : null}
+            </div>
           </div>
 
           <Card>
