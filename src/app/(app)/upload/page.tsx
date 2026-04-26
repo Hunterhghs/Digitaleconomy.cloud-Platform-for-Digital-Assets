@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
 import { UploadWizard } from "@/components/upload-wizard";
-import { getCategories, getCurrentProfile } from "@/lib/queries";
+import { getCategories, getCurrentProfile, getCurrentUser } from "@/lib/queries";
 
 export const metadata = { title: "Upload an asset" };
 
 export default async function UploadPage() {
   const [profile, categories] = await Promise.all([getCurrentProfile(), getCategories()]);
-  if (!profile) redirect("/login?next=/upload");
+  if (!profile) {
+    const user = await getCurrentUser();
+    if (!user) redirect("/login?next=/upload");
+    redirect(
+      "/settings?notice=" + encodeURIComponent("Choose a handle before uploading your first asset."),
+    );
+  }
 
   return (
     <div className="container-page max-w-5xl py-10">

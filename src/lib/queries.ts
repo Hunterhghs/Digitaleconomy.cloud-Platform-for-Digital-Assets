@@ -171,3 +171,11 @@ export async function getCurrentProfile() {
   const supabase = await createClient();
   return getOrCreateCurrentProfile(supabase);
 }
+
+export async function getCurrentUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}

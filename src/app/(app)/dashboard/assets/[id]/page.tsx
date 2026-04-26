@@ -4,7 +4,7 @@ import { ArrowLeft, Coins } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/server";
-import { getCategories, getCurrentProfile } from "@/lib/queries";
+import { getCategories, getCurrentProfile, getCurrentUser } from "@/lib/queries";
 import { EditAssetForm } from "./edit-form";
 import { MintRecorder } from "@/components/mint-recorder";
 import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
@@ -14,7 +14,11 @@ export const metadata = { title: "Edit asset" };
 export default async function EditAssetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const profile = await getCurrentProfile();
-  if (!profile) redirect(`/login?next=/dashboard/assets/${id}`);
+  if (!profile) {
+    const user = await getCurrentUser();
+    if (!user) redirect(`/login?next=/dashboard/assets/${id}`);
+    redirect("/settings?notice=" + encodeURIComponent("Choose a handle to finish setting up your account."));
+  }
 
   const supabase = await createClient();
   const { data: asset } = await supabase

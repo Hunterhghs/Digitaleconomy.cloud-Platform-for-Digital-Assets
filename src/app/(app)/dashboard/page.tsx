@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetGrid } from "@/components/asset-grid";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile, publicPreviewUrl } from "@/lib/queries";
+import { getCurrentProfile, getCurrentUser, publicPreviewUrl } from "@/lib/queries";
 import { format } from "date-fns";
 import { formatBytes, formatNumber } from "@/lib/utils";
 import { deleteAsset } from "@/app/(app)/upload/_actions";
@@ -19,7 +19,11 @@ export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const profile = await getCurrentProfile();
-  if (!profile) redirect("/login?next=/dashboard");
+  if (!profile) {
+    const user = await getCurrentUser();
+    if (!user) redirect("/login?next=/dashboard");
+    redirect("/settings?notice=" + encodeURIComponent("Choose a handle to finish setting up your account."));
+  }
 
   const supabase = await createClient();
 

@@ -68,11 +68,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
     liked = !!existing;
   }
 
-  // Bump view count (best-effort, no auth required for visibility)
-  await supabase
-    .from("assets")
-    .update({ view_count: asset.view_count + 1 })
-    .eq("id", asset.id);
+  // Bump view count via SECURITY DEFINER RPC so anonymous and non-owner
+  // viewers can also increment it (direct UPDATE is blocked by RLS).
+  await supabase.rpc("increment_view_count", { p_asset_id: asset.id });
 
   if (asset.status !== "published" && user?.id !== owner.id) {
     notFound();

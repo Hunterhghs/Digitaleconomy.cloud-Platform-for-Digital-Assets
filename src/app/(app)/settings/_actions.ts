@@ -35,27 +35,33 @@ export async function updateProfile(
   }
 
   const { handle, display_name, bio, website } = parsed.data;
+  const lowerHandle = handle.toLowerCase();
 
-  // ensure handle isn't taken by someone else
+  // Make sure no other user already has this handle.
   const { data: existing } = await supabase
     .from("profiles")
     .select("id")
-    .eq("handle", handle.toLowerCase())
+    .eq("handle", lowerHandle)
     .neq("id", user.id)
     .maybeSingle();
   if (existing) {
     return { ok: false, fieldErrors: { handle: "That handle is taken" } };
   }
 
+  // Upsert so the same form can both create and update a profile. This is the
+  // safety net users hit when the DB trigger / auto-creator didn't run.
   const { error } = await supabase
     .from("profiles")
-    .update({
-      handle: handle.toLowerCase(),
-      display_name: display_name || null,
-      bio: bio || null,
-      links: website ? { website } : null,
-    })
-    .eq("id", user.id);
+    .upsert(
+      {
+        id: user.id,
+        handle: lowerHandle,
+        display_name: display_name || null,
+        bio: bio || null,
+        links: website ? { website } : null,
+      },
+      { onConflict: "id" },
+    );
 
   if (error) return { ok: false, message: error.message };
   revalidatePath("/", "layout");

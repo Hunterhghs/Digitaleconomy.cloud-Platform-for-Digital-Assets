@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export type CurrentProfile = {
   id: string;
@@ -56,10 +57,45 @@ function deriveDisplayName(user: User): string | null {
   return null;
 }
 
+async function tryInsertProfile(
+  client: SupabaseClient,
+  userId: string,
+  baseHandle: string,
+  display: string | null,
+): Promise<{ ok: boolean; conflict: boolean; lastError: string | null }> {
+  let lastError: string | null = null;
+  for (let i = 0; i < 12; i++) {
+    const candidate = i === 0 ? baseHandle : `${baseHandle.slice(0, 20)}${i}`.slice(0, 24);
+    if (!HANDLE_RE.test(candidate)) continue;
+    const { error } = await client
+      .from("profiles")
+      .insert({ id: userId, handle: candidate, display_name: display });
+    if (!error) return { ok: true, conflict: false, lastError: null };
+    const code = (error as { code?: string }).code;
+    lastError = `${code ?? "?"}: ${error.message}`;
+    if (code !== "23505") break;
+  }
+  // Random suffix as a last resort.
+  const random = Math.random().toString(36).replace(/[^a-z0-9]/g, "").slice(0, 6) || "x1";
+  const fallback = `${baseHandle.slice(0, 17)}${random}`.slice(0, 24);
+  if (HANDLE_RE.test(fallback)) {
+    const { error } = await client
+      .from("profiles")
+      .insert({ id: userId, handle: fallback, display_name: display });
+    if (!error) return { ok: true, conflict: false, lastError };
+    lastError = `${(error as { code?: string }).code ?? "?"}: ${error.message}`;
+  }
+  return { ok: false, conflict: false, lastError };
+}
+
 /**
  * Returns the caller's profile, creating one on the fly if none exists.
  * Belt-and-braces companion to the `handle_new_user` DB trigger so accounts
  * always have a usable profile even if the trigger didn't run.
+ *
+ * If the user-scoped insert fails (RLS edge cases, JWT race, etc.) we fall
+ * back to the service-role client which bypasses RLS — only as a last resort,
+ * never in response to user-supplied data.
  */
 export async function getOrCreateCurrentProfile(
   supabase: SupabaseClient,
@@ -79,40 +115,50 @@ export async function getOrCreateCurrentProfile(
   const baseHandle = deriveBaseHandle(user);
   const display = deriveDisplayName(user);
 
-  for (let i = 0; i < 12; i++) {
-    const candidate = i === 0 ? baseHandle : `${baseHandle.slice(0, 20)}${i}`.slice(0, 24);
-    if (!HANDLE_RE.test(candidate)) continue;
-    const { error: insertErr } = await supabase
-      .from("profiles")
-      .insert({ id: user.id, handle: candidate, display_name: display });
-    if (!insertErr) {
-      const { data: created } = await supabase
-        .from("profiles")
-        .select("id, handle, display_name, bio, avatar_url, links, role")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (created) return created as CurrentProfile;
-    }
-    const code = (insertErr as { code?: string } | null)?.code;
-    if (code !== "23505") {
-      // Anything other than a unique-violation means we should stop guessing.
-      break;
-    }
-  }
-
-  // Final fallback: append a 6-char random suffix.
-  const random = Math.random().toString(36).replace(/[^a-z0-9]/g, "").slice(0, 6) || "x1";
-  const fallback = `${baseHandle.slice(0, 17)}${random}`.slice(0, 24);
-  if (HANDLE_RE.test(fallback)) {
-    await supabase
-      .from("profiles")
-      .insert({ id: user.id, handle: fallback, display_name: display });
+  // First try the user-scoped client (uses the user's JWT, RLS-friendly).
+  const userScoped = await tryInsertProfile(supabase, user.id, baseHandle, display);
+  if (userScoped.ok) {
     const { data: created } = await supabase
       .from("profiles")
       .select("id, handle, display_name, bio, avatar_url, links, role")
       .eq("id", user.id)
       .maybeSingle();
     if (created) return created as CurrentProfile;
+  } else {
+    console.warn(
+      "[profile] user-scoped profile insert failed",
+      { userId: user.id, lastError: userScoped.lastError },
+    );
   }
+
+  // Fall back to the service role if available. This is safe because we are
+  // creating a row keyed to the authenticated user's ID — we never read
+  // user-supplied input.
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const admin = createAdminClient();
+      const adminScoped = await tryInsertProfile(admin, user.id, baseHandle, display);
+      if (adminScoped.ok) {
+        const { data: created } = await admin
+          .from("profiles")
+          .select("id, handle, display_name, bio, avatar_url, links, role")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (created) return created as CurrentProfile;
+      } else {
+        console.error(
+          "[profile] admin-scoped profile insert failed",
+          { userId: user.id, lastError: adminScoped.lastError },
+        );
+      }
+    } catch (err) {
+      console.error("[profile] admin client unavailable", err);
+    }
+  } else {
+    console.warn(
+      "[profile] SUPABASE_SERVICE_ROLE_KEY not set; cannot retry profile insert as admin",
+    );
+  }
+
   return null;
 }
