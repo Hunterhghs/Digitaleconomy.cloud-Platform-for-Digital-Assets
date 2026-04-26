@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,8 +12,16 @@ function safeNext(input: string | null, fallback = "/dashboard") {
   return input;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      window.setTimeout(() => reject(new Error("The sign-in request timed out. Please try the link again.")), ms),
+    ),
+  ]);
+}
+
 function AuthHandleInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const [state, setState] = useState<"working" | "error">("working");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -29,8 +37,8 @@ function AuthHandleInner() {
       const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
       const queryParams = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
 
-      const accessToken = hashParams.get("access_token");
-      const refreshToken = hashParams.get("refresh_token");
+      const accessToken = hashParams.get("access_token") ?? queryParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token") ?? queryParams.get("refresh_token");
       const hashError = hashParams.get("error_description") ?? hashParams.get("error");
       const queryError = queryParams.get("error_description") ?? queryParams.get("error");
       const errorMsg = hashError ?? queryError;
@@ -55,10 +63,19 @@ function AuthHandleInner() {
       }
 
       const supabase = createClient();
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+      let error: Error | null = null;
+      try {
+        const result = await withTimeout(
+          supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          }),
+          10000,
+        );
+        error = result.error;
+      } catch (caught) {
+        error = caught instanceof Error ? caught : new Error("We couldn't complete sign-in.");
+      }
 
       if (error) {
         if (!cancelled) {
@@ -73,8 +90,7 @@ function AuthHandleInner() {
           window.history.replaceState(null, "", window.location.pathname);
         }
         const dest = type === "recovery" ? "/reset-password/update" : next;
-        router.replace(dest);
-        router.refresh();
+        window.location.replace(dest);
       }
     }
 
@@ -82,7 +98,7 @@ function AuthHandleInner() {
     return () => {
       cancelled = true;
     };
-  }, [params, router]);
+  }, [params]);
 
   return (
     <div className="container-page flex min-h-[calc(100vh-12rem)] items-center justify-center py-10">

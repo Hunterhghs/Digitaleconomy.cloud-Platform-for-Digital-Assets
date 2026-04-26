@@ -23,8 +23,8 @@ export function AuthHashRedirect() {
     if (window.location.pathname.startsWith("/auth/handle")) return;
 
     const target = new URL("/auth/handle", window.location.origin);
-    target.hash = hash;
-    target.searchParams.set("next", window.location.pathname || "/dashboard");
+    target.searchParams.set("next", window.location.pathname === "/" ? "/dashboard" : window.location.pathname);
+    target.hash = hash.startsWith("#") ? hash.slice(1) : hash;
     window.location.replace(target.toString());
   }, []);
 
