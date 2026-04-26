@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SiteLogo } from "@/components/site-logo";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateCurrentProfile } from "@/lib/profile";
 import { signOut } from "@/app/(auth)/_actions";
 
 export async function SiteHeader() {
@@ -21,20 +22,15 @@ export async function SiteHeader() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let profile: {
-    handle: string;
-    display_name: string | null;
-    avatar_url: string | null;
-    role: "user" | "moderator" | "admin";
-  } | null = null;
-  if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("handle, display_name, avatar_url, role")
-      .eq("id", user.id)
-      .maybeSingle();
-    profile = data;
-  }
+  const fullProfile = user ? await getOrCreateCurrentProfile(supabase) : null;
+  const profile = fullProfile
+    ? {
+        handle: fullProfile.handle,
+        display_name: fullProfile.display_name,
+        avatar_url: fullProfile.avatar_url,
+        role: fullProfile.role,
+      }
+    : null;
 
   const isStaff = profile?.role === "moderator" || profile?.role === "admin";
 

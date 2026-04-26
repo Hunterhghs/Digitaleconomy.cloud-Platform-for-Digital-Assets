@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getOrCreateCurrentProfile } from "@/lib/profile";
 import type { AssetCardData } from "@/components/asset-card";
 
 const PUBLIC_PREVIEW_BUCKET = "assets-preview";
@@ -168,14 +169,5 @@ export async function getProfileByHandle(handle: string) {
 
 export async function getCurrentProfile() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, handle, display_name, bio, avatar_url, links, role")
-    .eq("id", user.id)
-    .maybeSingle();
-  return data;
+  return getOrCreateCurrentProfile(supabase);
 }

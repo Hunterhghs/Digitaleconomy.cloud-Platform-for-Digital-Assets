@@ -85,6 +85,16 @@ function AuthHandleInner() {
         return;
       }
 
+      // Confirm the session has been written to cookies before navigating.
+      // setSession persists cookies asynchronously; without this, the next
+      // server-rendered request can race the cookie write and bounce the
+      // user back to /login.
+      try {
+        await withTimeout(supabase.auth.getUser(), 5000);
+      } catch {
+        // ignore — even if this throws, we'll still try to navigate
+      }
+
       if (!cancelled) {
         if (typeof window !== "undefined") {
           window.history.replaceState(null, "", window.location.pathname);
