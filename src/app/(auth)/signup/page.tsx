@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { SignUpForm } from "@/components/auth-forms";
 import { OAuthButtons } from "@/components/oauth-buttons";
+import { AuthNotice } from "@/components/auth-notice";
 
 export const metadata = { title: "Create your account" };
 
@@ -15,6 +16,7 @@ export default function SignUpPage() {
         <CardDescription>Free forever. No credit card required.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
+        <AuthNotice />
         <Suspense>
           <OAuthButtons />
         </Suspense>

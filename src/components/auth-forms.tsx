@@ -11,6 +11,7 @@ import {
   signUpWithEmail,
   requestPasswordReset,
   updatePassword,
+  resendConfirmation,
   type AuthFormState,
 } from "@/app/(auth)/_actions";
 
@@ -68,6 +69,48 @@ export function SignInForm() {
 
 export function SignUpForm() {
   const [state, formAction, pending] = useActionState(signUpWithEmail, initialState);
+  const [resendState, resendAction, resendPending] = useActionState(
+    resendConfirmation,
+    initialState,
+  );
+
+  if (state?.ok && state.email) {
+    const displayState = resendState?.message ? resendState : state;
+    return (
+      <div className="grid gap-4">
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <p className="font-medium">Check your email</p>
+          <p className="mt-1 text-emerald-900/80 dark:text-emerald-100/80">
+            We sent a confirmation link to{" "}
+            <span className="font-medium">{state.email}</span>. Click the link in the
+            email to activate your account.
+          </p>
+          <p className="mt-2 text-xs text-emerald-900/70 dark:text-emerald-100/70">
+            Tip: it can take a minute or two to arrive. Be sure to check your spam folder.
+          </p>
+        </div>
+        <FormMessage state={displayState} />
+        <form action={resendAction} className="grid gap-2">
+          <input type="hidden" name="email" value={state.email} />
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={resendPending}
+            className="w-full"
+          >
+            {resendPending ? "Resending..." : "Resend confirmation email"}
+          </Button>
+        </form>
+        <p className="text-center text-sm text-muted-foreground">
+          Wrong email?{" "}
+          <Link href="/signup" className="font-medium text-foreground hover:underline">
+            Start over
+          </Link>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form action={formAction} className="grid gap-3">
       <div className="grid gap-1.5">

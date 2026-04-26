@@ -15,6 +15,7 @@ export type AuthFormState = {
   ok: boolean;
   message?: string;
   fieldErrors?: Record<string, string>;
+  email?: string;
 };
 
 function flatten(errors: Record<string, string[] | undefined>): Record<string, string> {
@@ -35,7 +36,7 @@ export async function signUpWithEmail(
     return { ok: false, fieldErrors: flatten(parsed.error.flatten().fieldErrors) };
   }
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
@@ -43,9 +44,41 @@ export async function signUpWithEmail(
     },
   });
   if (error) return { ok: false, message: error.message };
+
+  // If email confirmations are disabled in Supabase, the user already has a
+  // session and we can drop them straight into the dashboard.
+  if (data.session) {
+    revalidatePath("/", "layout");
+    redirect("/dashboard");
+  }
+
   return {
     ok: true,
-    message: "Check your inbox to confirm your email and finish creating your account.",
+    email: parsed.data.email,
+    message:
+      "We sent a confirmation link to your email. Please click it to finish creating your account.",
+  };
+}
+
+export async function resendConfirmation(
+  _prev: AuthFormState | undefined,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!email) return { ok: false, message: "Missing email." };
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: `${siteConfig.url}/auth/callback?next=/dashboard`,
+    },
+  });
+  if (error) return { ok: false, message: error.message, email };
+  return {
+    ok: true,
+    email,
+    message: "We sent another confirmation email. Please check your inbox.",
   };
 }
 
