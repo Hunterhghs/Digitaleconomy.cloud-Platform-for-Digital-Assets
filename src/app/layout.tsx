@@ -5,6 +5,7 @@ import { siteConfig } from "@/lib/site";
 import { Providers } from "@/components/providers";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { AuthHashRedirect } from "@/components/auth-hash-redirect";
 import "./globals.css";
 
 const inter = Inter({
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} min-h-screen bg-background font-sans antialiased`}>
         <Providers>
+          <AuthHashRedirect />
           <Suspense>
             {/* Header is async (reads session); fall through during static generation */}
             <SiteHeader />
