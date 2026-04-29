@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Github } from "lucide-react";
 import { SiteLogo } from "@/components/site-logo";
 import { siteConfig } from "@/lib/site";
 
@@ -12,15 +11,6 @@ export function SiteFooter() {
           <p className="mt-3 max-w-sm text-sm text-muted-foreground">
             A nonprofit commons for digital assets. Free to list. Free to download. Always.
           </p>
-          <div className="mt-4 flex items-center gap-2">
-            <Link
-              href={siteConfig.links.github}
-              aria-label="GitHub"
-              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            >
-              <Github className="h-4 w-4" />
-            </Link>
-          </div>
         </div>
         <FooterColumn
           title="Discover"

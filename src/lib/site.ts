@@ -5,10 +5,6 @@ export const siteConfig = {
   description:
     "A nonprofit commons for creating, owning, and freely sharing digital assets. Free to list, free to download.",
   tagline: "Create. Own. Share. Always free.",
-  links: {
-    github: "https://github.com/your-org/digitaleconomy.cloud",
-    twitter: "https://twitter.com/digitaleconomy",
-  },
   ogImage: "/opengraph-image.png",
   keywords: [
     "digital assets",
