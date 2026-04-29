@@ -22,6 +22,7 @@ import {
 import { ASSET_LICENSES, siteConfig } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { getAssetByOwnerAndSlug } from "@/lib/queries";
+import { effectiveMimeFromAsset } from "@/lib/mime-normalize";
 import { resolveImageHeroUrl, resolvePdfEmbedUrl } from "@/lib/asset-hero";
 import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
 import { format } from "date-fns";
@@ -89,6 +90,8 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
   });
 
   const license = ASSET_LICENSES.find((l) => l.id === asset.license);
+  const mime = effectiveMimeFromAsset(asset.mime_type, asset.file_path);
+
   const heroUrl = await resolveImageHeroUrl(
     {
       thumbnail_path: asset.thumbnail_path,
@@ -128,7 +131,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
       <div className="grid gap-8 lg:grid-cols-[1fr,360px]">
         <div className="order-2 lg:order-1">
           <div className="overflow-hidden rounded-lg border bg-muted">
-            {isImageMime(asset.mime_type) && heroUrl ? (
+            {isImageMime(mime) && heroUrl ? (
               <Image
                 src={heroUrl}
                 alt={asset.title}
@@ -138,20 +141,20 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                 unoptimized
                 priority
               />
-            ) : isPdfMime(asset.mime_type) && pdfEmbedUrl ? (
+            ) : isPdfMime(mime) && pdfEmbedUrl ? (
               <iframe
                 title={asset.title}
-                src={pdfEmbedUrl}
+                src={`${pdfEmbedUrl}#view=FitH`}
                 className="aspect-[4/3] min-h-[min(75vh,720px)] w-full border-0 bg-muted"
               />
-            ) : isAudioMime(asset.mime_type) ? (
+            ) : isAudioMime(mime) ? (
               <div className="flex aspect-video flex-col items-center justify-center gap-4 p-10">
-                <MimeIcon mime={asset.mime_type} className="h-16 w-16 text-muted-foreground" />
+                <MimeIcon mime={mime} className="h-16 w-16 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
                   Audio preview is generated after download approval.
                 </p>
               </div>
-            ) : isVideoMime(asset.mime_type) && heroUrl ? (
+            ) : isVideoMime(mime) && heroUrl ? (
               <Image
                 src={heroUrl}
                 alt={asset.title}
@@ -162,10 +165,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
               />
             ) : (
               <div className="flex aspect-video flex-col items-center justify-center gap-4 p-10">
-                <MimeIcon mime={asset.mime_type} className="h-16 w-16 text-muted-foreground" />
+                <MimeIcon mime={mime} className="h-16 w-16 text-muted-foreground" />
                 <div className="text-center text-sm text-muted-foreground">
-                  No inline preview available for {asset.mime_type}
-                  {isImageMime(asset.mime_type) ? (
+                  No inline preview available for {mime}
+                  {isImageMime(mime) ? (
                     <span className="mt-2 block text-xs">
                       Thumbnails are preferred; without one we try to show the original — check back after a refresh.
                     </span>
@@ -282,7 +285,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                 <DT label="Type">
                   <span className="inline-flex items-center gap-1">
                     <FileText className="h-3 w-3" />
-                    {asset.mime_type.split("/")[0]}
+                    {mime.split("/")[0]}
                   </span>
                 </DT>
                 <DT label="Size">{formatBytes(asset.size_bytes)}</DT>

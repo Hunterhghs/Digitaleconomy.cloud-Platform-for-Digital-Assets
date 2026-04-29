@@ -3,6 +3,8 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getOrCreateCurrentProfile } from "@/lib/profile";
 import type { AssetCardData } from "@/components/asset-card";
+import { normalizeMimeType } from "@/lib/mime-normalize";
+import { isImageMime, isVideoMime } from "@/lib/utils";
 
 const PUBLIC_PREVIEW_BUCKET = "assets-preview";
 
@@ -13,6 +15,23 @@ export function publicPreviewUrl(path: string | null | undefined): string | null
   return `${base}/storage/v1/object/public/${PUBLIC_PREVIEW_BUCKET}/${path}`;
 }
 
+/**
+ * Normalize MIME from stored metadata + storage path so grids never show a raster
+ * thumbnail for PDFs/docs when legacy rows have bogus image MIME or stray previews.
+ */
+export function resolvedAssetPresentation(asset: {
+  mime_type: string;
+  thumbnail_path: string | null;
+  file_path: string | null | undefined;
+}): Pick<AssetCardData, "mime_type" | "thumbnail_url"> {
+  const mime = normalizeMimeType(asset.mime_type ?? "", asset.file_path ?? "");
+  const thumbnail_url =
+    (isImageMime(mime) || isVideoMime(mime)) && asset.thumbnail_path
+      ? publicPreviewUrl(asset.thumbnail_path)
+      : null;
+  return { mime_type: mime, thumbnail_url };
+}
+
 type RawAsset = {
   id: string;
   slug: string;
@@ -20,6 +39,7 @@ type RawAsset = {
   mime_type: string;
   size_bytes: number;
   thumbnail_path: string | null;
+  file_path: string | null;
   license: string;
   download_count: number;
   view_count: number;
@@ -29,13 +49,18 @@ type RawAsset = {
 
 function toCardData(a: RawAsset): AssetCardData | null {
   if (!a.owner) return null;
+  const { mime_type, thumbnail_url } = resolvedAssetPresentation({
+    mime_type: a.mime_type,
+    thumbnail_path: a.thumbnail_path,
+    file_path: a.file_path,
+  });
   return {
     id: a.id,
     slug: a.slug,
     title: a.title,
-    mime_type: a.mime_type,
+    mime_type,
     size_bytes: a.size_bytes,
-    thumbnail_url: publicPreviewUrl(a.thumbnail_path),
+    thumbnail_url,
     license: a.license,
     download_count: a.download_count,
     view_count: a.view_count,
@@ -45,7 +70,7 @@ function toCardData(a: RawAsset): AssetCardData | null {
 }
 
 const ASSET_SELECT =
-  "id, slug, title, mime_type, size_bytes, thumbnail_path, license, download_count, view_count, like_count, owner:profiles!assets_owner_id_fkey(handle, display_name, avatar_url)";
+  "id, slug, title, mime_type, size_bytes, thumbnail_path, file_path, license, download_count, view_count, like_count, owner:profiles!assets_owner_id_fkey(handle, display_name, avatar_url)";
 
 export const getCategories = cache(async () => {
   const supabase = await createClient();

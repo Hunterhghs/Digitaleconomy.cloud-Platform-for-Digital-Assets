@@ -1,14 +1,19 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
 import { publicPreviewUrl } from "@/lib/queries";
+import { normalizeMimeType } from "@/lib/mime-normalize";
 import { isImageMime, isPdfMime, isVideoMime } from "@/lib/utils";
 
-type AssetPreviewFields = {
+export type AssetPreviewFields = {
   thumbnail_path: string | null;
   file_path: string;
   mime_type: string;
   status: string;
 };
+
+function normalizedMime(asset: AssetPreviewFields): string {
+  return normalizeMimeType(asset.mime_type, asset.file_path ?? "");
+}
 
 type ResolveOpts = {
   viewerUserId: string | null;
@@ -55,7 +60,7 @@ export async function resolveImageHeroUrl(
   asset: AssetPreviewFields,
   opts: ResolveOpts,
 ): Promise<string | null> {
-  const mime = asset.mime_type;
+  const mime = normalizedMime(asset);
   const thumb = publicPreviewUrl(asset.thumbnail_path);
   if (thumb && (isImageMime(mime) || isVideoMime(mime))) return thumb;
 
@@ -69,6 +74,7 @@ export async function resolvePdfEmbedUrl(
   asset: AssetPreviewFields,
   opts: ResolveOpts,
 ): Promise<string | null> {
-  if (!isPdfMime(asset.mime_type) || !asset.file_path) return null;
+  const mime = normalizedMime(asset);
+  if (!isPdfMime(mime) || !asset.file_path) return null;
   return signedOriginalUrl(asset, opts);
 }

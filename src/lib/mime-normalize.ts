@@ -100,3 +100,11 @@ export function normalizeMimeType(declaredMime: string, pathOrFileName: string):
 
   return declaredMime.trim();
 }
+
+/** Prefer extension-based MIME when DB/browser metadata disagrees with `file_path`. */
+export function effectiveMimeFromAsset(
+  mime_type: string | null | undefined,
+  file_path: string | null | undefined,
+): string {
+  return normalizeMimeType(mime_type ?? "", file_path ?? "");
+}

@@ -7,7 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetGrid } from "@/components/asset-grid";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile, getCurrentUser, publicPreviewUrl } from "@/lib/queries";
+import { getCurrentProfile, getCurrentUser, resolvedAssetPresentation } from "@/lib/queries";
+import { effectiveMimeFromAsset } from "@/lib/mime-normalize";
 import { format } from "date-fns";
 import { formatBytes, formatNumber } from "@/lib/utils";
 import { deleteAsset } from "@/app/(app)/upload/_actions";
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
   const { data: myAssets } = await supabase
     .from("assets")
     .select(
-      "id, slug, title, mime_type, size_bytes, license, status, download_count, view_count, like_count, thumbnail_path, created_at",
+      "id, slug, title, mime_type, size_bytes, license, status, download_count, view_count, like_count, thumbnail_path, file_path, created_at",
     )
     .eq("owner_id", profile.id)
     .order("created_at", { ascending: false })
@@ -39,7 +40,7 @@ export default async function DashboardPage() {
   const { data: likedRaw } = await supabase
     .from("likes")
     .select(
-      "asset:assets(id, slug, title, mime_type, size_bytes, thumbnail_path, license, download_count, view_count, like_count, owner:profiles!assets_owner_id_fkey(handle, display_name, avatar_url))",
+      "asset:assets(id, slug, title, mime_type, size_bytes, thumbnail_path, file_path, license, download_count, view_count, like_count, owner:profiles!assets_owner_id_fkey(handle, display_name, avatar_url))",
     )
     .eq("user_id", profile.id)
     .order("created_at", { ascending: false })
@@ -51,13 +52,18 @@ export default async function DashboardPage() {
       if (!a) return null;
       const owner = Array.isArray(a.owner) ? a.owner[0] : a.owner;
       if (!owner) return null;
+      const pres = resolvedAssetPresentation({
+        mime_type: a.mime_type,
+        thumbnail_path: a.thumbnail_path,
+        file_path: a.file_path ?? null,
+      });
       return {
         id: a.id,
         slug: a.slug,
         title: a.title,
-        mime_type: a.mime_type,
+        mime_type: pres.mime_type,
         size_bytes: a.size_bytes,
-        thumbnail_url: publicPreviewUrl(a.thumbnail_path),
+        thumbnail_url: pres.thumbnail_url,
         license: a.license,
         download_count: a.download_count,
         view_count: a.view_count,
@@ -145,7 +151,7 @@ export default async function DashboardPage() {
                           {a.title}
                         </Link>
                         <div className="text-xs text-muted-foreground">
-                          {a.mime_type} · {formatBytes(a.size_bytes)} · {a.license}
+                          {effectiveMimeFromAsset(a.mime_type, a.file_path)} · {formatBytes(a.size_bytes)} · {a.license}
                         </div>
                       </td>
                       <td className="px-4 py-3">

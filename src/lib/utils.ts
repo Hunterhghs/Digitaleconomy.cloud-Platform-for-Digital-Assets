@@ -56,5 +56,6 @@ export function isAudioMime(mime: string | null | undefined) {
   return !!mime && mime.startsWith("audio/");
 }
 export function isPdfMime(mime: string | null | undefined) {
-  return mime?.trim().toLowerCase() === "application/pdf";
+  const m = mime?.trim().toLowerCase() ?? "";
+  return m === "application/pdf" || m === "application/x-pdf";
 }
