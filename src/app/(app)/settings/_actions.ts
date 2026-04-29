@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { profileSchema } from "@/lib/validators/profile";
+import {
+  isProfilesTableMissingError,
+  MISSING_DATABASE_SETUP_INSTRUCTIONS,
+} from "@/lib/supabase-errors";
 
 export type SettingsState = {
   ok: boolean;
@@ -38,12 +42,18 @@ export async function updateProfile(
   const lowerHandle = handle.toLowerCase();
 
   // Make sure no other user already has this handle.
-  const { data: existing } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from("profiles")
     .select("id")
     .eq("handle", lowerHandle)
     .neq("id", user.id)
     .maybeSingle();
+  if (existingErr) {
+    if (isProfilesTableMissingError(existingErr)) {
+      return { ok: false, message: MISSING_DATABASE_SETUP_INSTRUCTIONS };
+    }
+    return { ok: false, message: existingErr.message };
+  }
   if (existing) {
     return { ok: false, fieldErrors: { handle: "That handle is taken" } };
   }
@@ -63,7 +73,12 @@ export async function updateProfile(
       { onConflict: "id" },
     );
 
-  if (error) return { ok: false, message: error.message };
+  if (error) {
+    if (isProfilesTableMissingError(error)) {
+      return { ok: false, message: MISSING_DATABASE_SETUP_INSTRUCTIONS };
+    }
+    return { ok: false, message: error.message };
+  }
   revalidatePath("/", "layout");
   return { ok: true, message: "Profile saved." };
 }
@@ -98,7 +113,12 @@ export async function uploadAvatar(formData: FormData): Promise<SettingsState> {
     .from("profiles")
     .update({ avatar_url: publicUrl })
     .eq("id", user.id);
-  if (profErr) return { ok: false, message: profErr.message };
+  if (profErr) {
+    if (isProfilesTableMissingError(profErr)) {
+      return { ok: false, message: MISSING_DATABASE_SETUP_INSTRUCTIONS };
+    }
+    return { ok: false, message: profErr.message };
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, message: "Avatar updated." };

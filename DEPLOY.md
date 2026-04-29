@@ -9,7 +9,13 @@ This walks through getting the app onto a live `digitaleconomy.cloud` domain via
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY` (server-only; never ship to the browser)
-3. Run the migrations in `supabase/migrations/` (in order). See `supabase/README.md`.
+3. **Create the database schema (required)** — if you skip this step, users can sign up but saving a profile will fail with errors about `public.profiles`:
+
+   **Option A — one paste:** open **SQL Editor**, paste the entire **`supabase/FULL_SETUP_RUN_ONCE.sql`** file from this repository, and click **Run** (~30 seconds). Optionally restart the project under **Settings → API** so the API cache refreshes.
+
+   **Option B — CLI:** `supabase link` then `supabase db push` (applies everything in `supabase/migrations/` in order).
+
+   **Option C — manual:** run each file in `supabase/migrations/` in numeric order via the SQL Editor (see `supabase/README.md`).
 4. **Authentication → URL Configuration**:
    - **Site URL**: `https://www.digitaleconomy.cloud` (must match the live origin you actually use; `www.` prefix matters)
    - **Additional redirect URLs** — paste all of these so links from email work no matter which domain you sent from:

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileForm } from "./profile-form";
 import { AvatarUploader } from "./avatar-uploader";
+import { DatabaseSetupBanner } from "./database-banner";
 import { getCurrentProfile, getCurrentUser } from "@/lib/queries";
 import { isWeb3Enabled } from "@/lib/web3/chains";
 import { Wallet } from "lucide-react";
@@ -33,7 +34,9 @@ export default async function SettingsPage() {
   const defaultHandle = profile?.handle ?? deriveBaseHandleFromEmail(user.email);
 
   return (
-    <div className="container-page max-w-3xl py-10">
+    <div className="container-page max-w-3xl pb-28 pt-10 md:pb-10">
+      <DatabaseSetupBanner />
+
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">
