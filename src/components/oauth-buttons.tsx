@@ -1,4 +1,3 @@
-import { Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { signInWithProvider } from "@/app/(auth)/_actions";
 
@@ -10,13 +9,6 @@ export function OAuthButtons({ next = "/dashboard" }: { next?: string }) {
         <input type="hidden" name="next" value={next} />
         <Button type="submit" variant="outline" className="w-full">
           <GoogleIcon /> Continue with Google
-        </Button>
-      </form>
-      <form action={signInWithProvider}>
-        <input type="hidden" name="provider" value="github" />
-        <input type="hidden" name="next" value={next} />
-        <Button type="submit" variant="outline" className="w-full">
-          <Github className="h-4 w-4" /> Continue with GitHub
         </Button>
       </form>
     </div>

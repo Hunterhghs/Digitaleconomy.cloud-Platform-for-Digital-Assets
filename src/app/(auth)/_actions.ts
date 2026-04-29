@@ -104,7 +104,7 @@ export async function signInWithEmail(
 export async function signInWithProvider(formData: FormData) {
   const provider = String(formData.get("provider") ?? "");
   const next = String(formData.get("next") ?? "/dashboard");
-  if (provider !== "google" && provider !== "github") return;
+  if (provider !== "google") return;
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
