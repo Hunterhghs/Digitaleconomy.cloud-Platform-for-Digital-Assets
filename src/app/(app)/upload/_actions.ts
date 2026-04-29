@@ -255,19 +255,31 @@ export async function deleteAsset(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   if (!id) return;
 
-  const { data: asset } = await supabase
+  const { data: row } = await supabase
     .from("assets")
-    .select("file_path, thumbnail_path, owner_id")
+    .select(
+      "file_path, thumbnail_path, owner_id, slug, owner:profiles!assets_owner_id_fkey(handle)",
+    )
     .eq("id", id)
     .maybeSingle();
-  if (!asset || asset.owner_id !== user.id) return;
 
-  if (asset.file_path) await supabase.storage.from("assets-original").remove([asset.file_path]);
-  if (asset.thumbnail_path) await supabase.storage.from("assets-preview").remove([asset.thumbnail_path]);
+  if (!row || row.owner_id !== user.id) return;
+
+  const ownerRel = row.owner as { handle: string } | { handle: string }[] | null;
+  const ownerHandle = Array.isArray(ownerRel) ? ownerRel[0]?.handle : ownerRel?.handle;
+
+  if (row.file_path) await supabase.storage.from("assets-original").remove([row.file_path]);
+  if (row.thumbnail_path) await supabase.storage.from("assets-preview").remove([row.thumbnail_path]);
   await supabase.from("assets").delete().eq("id", id);
 
+  if (ownerHandle && row.slug) {
+    revalidatePath(`/a/${ownerHandle}/${row.slug}`);
+    revalidatePath(`/u/${ownerHandle}`);
+  }
   revalidatePath("/dashboard");
   revalidatePath("/", "layout");
+
+  redirect("/dashboard");
 }
 
 export async function updateAssetMeta(

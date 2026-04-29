@@ -6,12 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetGrid } from "@/components/asset-grid";
+import { DeleteAssetForm } from "@/components/delete-asset-form";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile, getCurrentUser, resolvedAssetPresentation } from "@/lib/queries";
 import { effectiveMimeFromAsset } from "@/lib/mime-normalize";
 import { format } from "date-fns";
 import { formatBytes, formatNumber } from "@/lib/utils";
-import { deleteAsset } from "@/app/(app)/upload/_actions";
 import { deleteCollection } from "@/app/(app)/_actions/collections";
 import { CreateCollectionDialog } from "./create-collection";
 import type { AssetCardData } from "@/components/asset-card";
@@ -172,12 +172,7 @@ export default async function DashboardPage() {
                               <Pencil className="h-4 w-4" />
                             </Link>
                           </Button>
-                          <form action={deleteAsset}>
-                            <input type="hidden" name="id" value={a.id} />
-                            <Button type="submit" variant="ghost" size="icon" aria-label="Delete">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </form>
+                          <DeleteAssetForm assetId={a.id} />
                         </div>
                       </td>
                     </tr>

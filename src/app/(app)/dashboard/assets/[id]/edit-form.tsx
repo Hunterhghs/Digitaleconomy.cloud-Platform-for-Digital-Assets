@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { ASSET_LICENSES } from "@/lib/site";
 import { updateAssetMeta, type UploadActionState } from "@/app/(app)/upload/_actions";
+import { DeleteAssetForm } from "@/components/delete-asset-form";
 
 const initial: UploadActionState = { ok: false };
 
@@ -42,6 +43,7 @@ export function EditAssetForm({
   const [categoryId, setCategoryId] = useState(defaults.category_id ?? "");
 
   return (
+    <>
     <form
       action={(fd) => {
         fd.set("status", status);
@@ -135,6 +137,17 @@ export function EditAssetForm({
         </Button>
       </div>
     </form>
+
+      <div className="mt-8 rounded-lg border border-destructive/35 bg-destructive/5 p-4">
+        <p className="text-sm font-medium text-destructive">Delete asset</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Removes this listing and files from storage. This cannot be undone.
+        </p>
+        <div className="mt-3">
+          <DeleteAssetForm assetId={defaults.id} variant="destructive" size="sm" showLabel />
+        </div>
+      </div>
+    </>
   );
 }
 

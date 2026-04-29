@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { LikeButton } from "@/components/like-button";
 import { ReportDialog } from "@/components/report-dialog";
+import { DeleteAssetForm } from "@/components/delete-asset-form";
 import { MimeIcon } from "@/components/asset-card";
 import {
   formatBytes,
@@ -314,6 +315,24 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                   </span>
                 </DT>
               </dl>
+
+              {user?.id === owner.id ? (
+                <>
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/dashboard/assets/${asset.id}`}>Edit</Link>
+                    </Button>
+                    <DeleteAssetForm
+                      assetId={asset.id}
+                      variant="destructive"
+                      size="sm"
+                      showLabel
+                      buttonClassName="w-full"
+                    />
+                  </div>
+                </>
+              ) : null}
 
               <Separator />
 
