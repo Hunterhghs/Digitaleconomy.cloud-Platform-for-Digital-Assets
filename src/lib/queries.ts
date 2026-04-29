@@ -1,10 +1,10 @@
 import "server-only";
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getOrCreateCurrentProfile } from "@/lib/profile";
 import type { AssetCardData } from "@/components/asset-card";
 import { normalizeMimeType } from "@/lib/mime-normalize";
-import { isImageMime, isVideoMime } from "@/lib/utils";
+import { isImageMime, isPdfMime, isVideoMime } from "@/lib/utils";
 
 const PUBLIC_PREVIEW_BUCKET = "assets-preview";
 
@@ -47,14 +47,24 @@ type RawAsset = {
   owner: { handle: string; display_name: string | null; avatar_url: string | null } | null;
 };
 
-function toCardData(a: RawAsset): AssetCardData | null {
+async function signOriginalForCardPreview(file_path: string): Promise<string | null> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage.from("assets-original").createSignedUrl(file_path, 900);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
+/** Grid cards on explore/home/profile: thumbnail when present; else signed preview for image / video / PDF. */
+export async function buildAssetCardData(a: RawAsset): Promise<AssetCardData | null> {
   if (!a.owner) return null;
   const { mime_type, thumbnail_url } = resolvedAssetPresentation({
     mime_type: a.mime_type,
     thumbnail_path: a.thumbnail_path,
     file_path: a.file_path,
   });
-  return {
+
+  const base: AssetCardData = {
     id: a.id,
     slug: a.slug,
     title: a.title,
@@ -67,6 +77,24 @@ function toCardData(a: RawAsset): AssetCardData | null {
     like_count: a.like_count,
     owner: a.owner,
   };
+
+  if (thumbnail_url) return base;
+  if (!a.file_path) return base;
+
+  const signed = await signOriginalForCardPreview(a.file_path);
+  if (!signed) return base;
+
+  if (isImageMime(mime_type)) {
+    return { ...base, card_preview_url: signed, card_preview_kind: "image" };
+  }
+  if (isVideoMime(mime_type)) {
+    return { ...base, card_preview_url: signed, card_preview_kind: "video" };
+  }
+  if (isPdfMime(mime_type)) {
+    return { ...base, card_preview_url: signed, card_preview_kind: "pdf" };
+  }
+
+  return base;
 }
 
 const ASSET_SELECT =
@@ -147,9 +175,9 @@ export async function listAssets(opts: {
     return [];
   }
 
-  return (data as unknown as RawAsset[])
-    .map(toCardData)
-    .filter((x): x is AssetCardData => x !== null);
+  const rows = (data as unknown as RawAsset[]) ?? [];
+  const cards = await Promise.all(rows.map((row) => buildAssetCardData(row)));
+  return cards.filter((x): x is AssetCardData => x !== null);
 }
 
 export async function getAssetByOwnerAndSlug(handle: string, slug: string) {

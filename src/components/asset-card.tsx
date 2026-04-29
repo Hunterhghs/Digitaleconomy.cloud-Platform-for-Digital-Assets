@@ -12,6 +12,9 @@ export type AssetCardData = {
   mime_type: string;
   size_bytes: number;
   thumbnail_url: string | null;
+  /** Signed original URL when no raster thumbnail (short TTL); use with card_preview_kind */
+  card_preview_url?: string | null;
+  card_preview_kind?: "image" | "video" | "pdf" | null;
   license: string;
   download_count: number;
   view_count: number;
@@ -28,27 +31,7 @@ export function AssetCard({ asset, className }: { asset: AssetCardData; classNam
         className,
       )}
     >
-      <Link href={href} className="relative block aspect-[4/3] overflow-hidden bg-muted">
-        {asset.thumbnail_url ? (
-          <Image
-            src={asset.thumbnail_url}
-            alt={asset.title}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 33vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-            unoptimized
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <MimeIcon mime={asset.mime_type} className="h-10 w-10" />
-          </div>
-        )}
-        <div className="absolute right-2 top-2 flex gap-1">
-          <Badge variant="secondary" className="bg-background/80 backdrop-blur">
-            {asset.license}
-          </Badge>
-        </div>
-      </Link>
+      <CardPreview asset={asset} href={href} />
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <Link href={href} className="line-clamp-1 font-medium hover:underline">
@@ -77,6 +60,93 @@ export function AssetCard({ asset, className }: { asset: AssetCardData; classNam
         </div>
       </div>
     </article>
+  );
+}
+
+function CardPreview({ asset, href }: { asset: AssetCardData; href: string }) {
+  const badge = (
+    <Badge variant="secondary" className="pointer-events-none absolute right-2 top-2 z-20 bg-background/80 backdrop-blur">
+      {asset.license}
+    </Badge>
+  );
+  const overlay = (
+    <Link href={href} className="absolute inset-0 z-10" aria-label={`View ${asset.title}`}>
+      <span className="sr-only">{asset.title}</span>
+    </Link>
+  );
+
+  if (asset.thumbnail_url) {
+    return (
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <Image
+          src={asset.thumbnail_url}
+          alt=""
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 33vw, 25vw"
+          className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          unoptimized
+        />
+        {overlay}
+        {badge}
+      </div>
+    );
+  }
+
+  if (asset.card_preview_kind === "image" && asset.card_preview_url) {
+    return (
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <Image
+          src={asset.card_preview_url}
+          alt=""
+          fill
+          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 33vw, 25vw"
+          className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+          unoptimized
+        />
+        {overlay}
+        {badge}
+      </div>
+    );
+  }
+
+  if (asset.card_preview_kind === "video" && asset.card_preview_url) {
+    return (
+      <div className="relative aspect-[4/3] overflow-hidden bg-black">
+        <video
+          src={asset.card_preview_url}
+          muted
+          playsInline
+          preload="metadata"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+        {overlay}
+        {badge}
+      </div>
+    );
+  }
+
+  if (asset.card_preview_kind === "pdf" && asset.card_preview_url) {
+    return (
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <iframe
+          title=""
+          src={`${asset.card_preview_url}#view=FitH`}
+          className="pointer-events-none absolute inset-0 h-full w-full border-0 bg-muted"
+        />
+        {overlay}
+        {badge}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+      <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+        <MimeIcon mime={asset.mime_type} className="h-10 w-10" />
+      </div>
+      {overlay}
+      {badge}
+    </div>
   );
 }
 

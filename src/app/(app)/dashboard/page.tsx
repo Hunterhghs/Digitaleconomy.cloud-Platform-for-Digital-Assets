@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetGrid } from "@/components/asset-grid";
 import { DeleteAssetForm } from "@/components/delete-asset-form";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentProfile, getCurrentUser, resolvedAssetPresentation } from "@/lib/queries";
+import { getCurrentProfile, getCurrentUser, buildAssetCardData } from "@/lib/queries";
 import { effectiveMimeFromAsset } from "@/lib/mime-normalize";
 import { format } from "date-fns";
 import { formatBytes, formatNumber } from "@/lib/utils";
@@ -46,32 +46,30 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false })
     .limit(36);
 
-  const liked: AssetCardData[] = (likedRaw ?? [])
-    .map((l) => {
-      const a = Array.isArray(l.asset) ? l.asset[0] : l.asset;
-      if (!a) return null;
-      const owner = Array.isArray(a.owner) ? a.owner[0] : a.owner;
-      if (!owner) return null;
-      const pres = resolvedAssetPresentation({
-        mime_type: a.mime_type,
-        thumbnail_path: a.thumbnail_path,
-        file_path: a.file_path ?? null,
-      });
-      return {
-        id: a.id,
-        slug: a.slug,
-        title: a.title,
-        mime_type: pres.mime_type,
-        size_bytes: a.size_bytes,
-        thumbnail_url: pres.thumbnail_url,
-        license: a.license,
-        download_count: a.download_count,
-        view_count: a.view_count,
-        like_count: a.like_count,
-        owner,
-      } as AssetCardData;
-    })
-    .filter((x): x is AssetCardData => x !== null);
+  const liked: AssetCardData[] = (
+    await Promise.all(
+      (likedRaw ?? []).map(async (l) => {
+        const a = Array.isArray(l.asset) ? l.asset[0] : l.asset;
+        if (!a) return null;
+        const owner = Array.isArray(a.owner) ? a.owner[0] : a.owner;
+        if (!owner) return null;
+        return buildAssetCardData({
+          id: a.id,
+          slug: a.slug,
+          title: a.title,
+          mime_type: a.mime_type,
+          size_bytes: a.size_bytes,
+          thumbnail_path: a.thumbnail_path,
+          file_path: a.file_path ?? null,
+          license: a.license,
+          download_count: a.download_count,
+          view_count: a.view_count,
+          like_count: a.like_count,
+          owner,
+        });
+      }),
+    )
+  ).filter((x): x is AssetCardData => x !== null);
 
   const { data: collections } = await supabase
     .from("collections")
