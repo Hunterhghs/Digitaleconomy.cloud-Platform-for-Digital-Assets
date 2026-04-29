@@ -5,6 +5,9 @@ import { useSearchParams } from "next/navigation";
 
 function humanizeError(input: string) {
   const decoded = decodeURIComponent(input);
+  if (/redirect_uri/i.test(decoded)) {
+    return "Google sign-in failed (redirect URI mismatch). In Google Cloud Console, open your Web OAuth client → Authorized redirect URIs, and add the Callback URL from Supabase (Authentication → Providers → Google). It must end with /auth/v1/callback. See DEPLOY.md section 1, step 7.";
+  }
   if (decoded === "callback") {
     return "We couldn't complete your sign-in. Please try again or request a new email link.";
   }

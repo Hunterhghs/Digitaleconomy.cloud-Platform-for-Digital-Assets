@@ -28,7 +28,9 @@ This walks through getting the app onto a live `digitaleconomy.cloud` domain via
      - `http://localhost:3000/auth/callback`
      - `http://localhost:3000/auth/confirm`
      - `http://localhost:3000/auth/handle`
-5. **Authentication → Providers**: enable Email, Google, GitHub. For Google/GitHub create OAuth apps with the Supabase callback URL (shown in the Supabase UI).
+5. **Authentication → Providers**
+   - Enable **Email**.
+   - Enable **Google** (see below — required for “Continue with Google” to work).
 6. **Authentication → Email Templates** — replace the action-button URL in the **Confirm signup** and **Reset password** templates with the modern token-hash links so we always get a server-readable token in the URL:
 
    **Confirm signup** template:
@@ -50,7 +52,26 @@ This walks through getting the app onto a live `digitaleconomy.cloud` domain via
    ```
 
    The `/auth/callback` and `/auth/handle` routes also handle the legacy `?code=` and `#access_token=` formats, so older emails still work — but the templates above are the most reliable.
-7. **Storage**: the migration creates the buckets, but verify `assets-original`, `assets-preview`, and `avatars` exist.
+7. **Google OAuth (avoid Error 400 `redirect_uri_mismatch`)**
+
+   Create an **OAuth 2.0 Client ID** (application type **Web**) in Google Cloud if needed; copy the **Client ID** and **Client Secret** into **Supabase → Authentication → Providers → Google** (enable the provider).
+
+   Supabase finishes the Google handshake at **its own** URL — **not** your app’s `/auth/callback`. Google must allow that exact redirect.
+
+   1. **Supabase:** **Authentication → Providers → Google**. Copy the **Callback URL** shown there. It looks like  
+      `https://<YOUR_PROJECT_REF>.supabase.co/auth/v1/callback`
+   2. **Google Cloud Console:** [APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials) → open your **OAuth 2.0 Client ID** (Web application).
+   3. Under **Authorized redirect URIs**, click **Add URI** and paste the Supabase URL **exactly** (same scheme `https`, host, path `/auth/v1/callback`, no trailing slash unless Google shows one).
+   4. Under **Authorized JavaScript origins**, add `https://<YOUR_PROJECT_REF>.supabase.co` if Google prompts for it.
+   5. Save; wait a few minutes for changes to propagate.
+
+   **Common mistakes**
+
+   - Putting only `https://yourdomain.com/auth/callback` in Google — that is for **your app**, but Google’s OAuth client must list **Supabase’s** `/auth/v1/callback` URL above.
+   - Typo or `http` vs `https`, or a different Supabase project ref than the one in **Project Settings → API**.
+   - Editing the wrong OAuth client (Android/iOS vs Web).
+
+8. **Storage**: the migration creates the buckets, but verify `assets-original`, `assets-preview`, and `avatars` exist.
 
 ## 2. Push to GitHub
 
@@ -131,7 +152,7 @@ Web3 features (wallet linking + on-chain mint badges) are gated behind a feature
 ## 9. Post-deploy checklist
 
 - [ ] Sign up with email; confirm the verification flow works.
-- [ ] Sign in with Google and GitHub.
+- [ ] Sign in with Google (if enabled).
 - [ ] Upload a test image; confirm the thumbnail renders.
 - [ ] Download the test asset; confirm `download_count` increments.
 - [ ] Like the asset; confirm `like_count` updates.
@@ -140,6 +161,11 @@ Web3 features (wallet linking + on-chain mint badges) are gated behind a feature
 - [ ] Confirm `/opengraph-image` returns a PNG (preview an asset on Twitter/Slack).
 
 ## 10. Troubleshooting auth
+
+**Google shows “Access blocked” / Error 400 `redirect_uri_mismatch`.**
+Google’s OAuth app does not list Supabase’s callback URL. See **§1, step 7**: add  
+`https://<YOUR_PROJECT_REF>.supabase.co/auth/v1/callback`  
+to **Authorized redirect URIs** for the **Web** OAuth client whose Client ID/Secret you pasted into Supabase. Do **not** only add your site URL (`https://yourdomain.com/auth/callback`) here — that addresses a different redirect step.
 
 **Confirmation / reset emails never arrive.**
 1. Check Supabase **Authentication → Logs** for the email send attempt. If the log shows "rate limited", you have hit the free SMTP cap — wire up Resend SMTP (see §5).
