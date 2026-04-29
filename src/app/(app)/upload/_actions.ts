@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { assetMetaSchema, updateAssetSchema } from "@/lib/validators/asset";
 import { isAllowedMime, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB } from "@/lib/site";
+import { normalizeMimeType } from "@/lib/mime-normalize";
 import { slugify, shortId } from "@/lib/utils";
 
 export type UploadActionState = {
@@ -39,8 +40,12 @@ export async function uploadAndCreateAsset(
   if (!file || !file.size) return { ok: false, message: "Pick a file to upload." };
   if (file.size > MAX_UPLOAD_SIZE_BYTES)
     return { ok: false, message: `Files must be ${MAX_UPLOAD_SIZE_MB} MB or smaller.` };
-  if (!isAllowedMime(file.type, file.name))
-    return { ok: false, message: `File type "${file.type}" is not currently allowed.` };
+  const normalizedMime = normalizeMimeType(file.type, file.name);
+  if (!isAllowedMime(normalizedMime, file.name))
+    return {
+      ok: false,
+      message: `File type "${file.type || "unknown"}" is not currently allowed.`,
+    };
 
   const tagsRaw = String(formData.get("tags") ?? "");
   const tags = tagsRaw
@@ -68,15 +73,15 @@ export async function uploadAndCreateAsset(
 
   const { error: upErr } = await supabase.storage
     .from("assets-original")
-    .upload(filePath, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+    .upload(filePath, file, { cacheControl: "3600", upsert: false, contentType: normalizedMime });
   if (upErr) return { ok: false, message: `Upload failed: ${upErr.message}` };
 
   let thumbPath: string | null = null;
-  if (file.type.startsWith("image/")) {
+  if (normalizedMime.startsWith("image/")) {
     const previewPath = `${user.id}/${id}/preview-${safeName}`;
     const { error: prevErr } = await supabase.storage
       .from("assets-preview")
-      .upload(previewPath, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
+      .upload(previewPath, file, { cacheControl: "31536000", upsert: false, contentType: normalizedMime });
     if (!prevErr) thumbPath = previewPath;
   }
 
@@ -85,7 +90,7 @@ export async function uploadAndCreateAsset(
     userId: user.id,
     id,
     meta,
-    file: { path: filePath, mime: file.type, size: file.size, thumbPath },
+    file: { path: filePath, mime: normalizedMime, size: file.size, thumbPath },
   });
 }
 
@@ -123,18 +128,30 @@ export async function finalizeAsset(
 
   const id = String(formData.get("id") ?? "");
   const filePath = String(formData.get("file_path") ?? "");
-  const mime = String(formData.get("mime_type") ?? "application/octet-stream");
+  const rawMime = String(formData.get("mime_type") ?? "application/octet-stream");
   const size = Number(formData.get("size_bytes") ?? 0);
-  const thumbPath = (String(formData.get("thumbnail_path") ?? "") || null) as string | null;
+  const clientThumbPath = (String(formData.get("thumbnail_path") ?? "") || null) as string | null;
 
   const originalFilename = String(formData.get("original_filename") ?? "");
   const pathTail = filePath.split("/").pop() ?? "";
+  const nameHint = originalFilename || pathTail;
   if (!id || !filePath || !size) {
     return { ok: false, message: "Upload incomplete; please try again." };
   }
-  if (!isAllowedMime(mime, originalFilename || pathTail))
+
+  const mime = normalizeMimeType(rawMime, nameHint);
+  if (!isAllowedMime(mime, nameHint))
     return { ok: false, message: `Type "${mime}" is not allowed.` };
   if (size > MAX_UPLOAD_SIZE_BYTES) return { ok: false, message: `Max ${MAX_UPLOAD_SIZE_MB} MB.` };
+
+  const canHaveThumb = mime.startsWith("image/") || mime.startsWith("video/");
+  let thumbPath = clientThumbPath;
+  if (!canHaveThumb) {
+    if (clientThumbPath) {
+      await supabase.storage.from("assets-preview").remove([clientThumbPath]);
+    }
+    thumbPath = null;
+  }
 
   return finalizeInsert({
     supabase,

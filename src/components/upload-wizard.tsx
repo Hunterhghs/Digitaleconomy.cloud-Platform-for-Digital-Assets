@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ASSET_LICENSES, MAX_UPLOAD_SIZE_BYTES, MAX_UPLOAD_SIZE_MB, isAllowedMime } from "@/lib/site";
+import { normalizeMimeType } from "@/lib/mime-normalize";
 import { formatBytes, isAudioMime, isImageMime, isVideoMime } from "@/lib/utils";
 import { finalizeAsset, type UploadActionState } from "@/app/(app)/upload/_actions";
 import { createClient } from "@/lib/supabase/client";
@@ -61,7 +62,8 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
         setMessage(`Files must be ${MAX_UPLOAD_SIZE_MB} MB or smaller.`);
         return;
       }
-      if (!isAllowedMime(f.type, f.name)) {
+      const effectiveMime = normalizeMimeType(f.type || "application/octet-stream", f.name);
+      if (!isAllowedMime(effectiveMime, f.name)) {
         setMessage(`Type "${f.type || "unknown"}" isn't currently allowed.`);
         return;
       }
@@ -69,9 +71,9 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
       setFile(f);
       if (!title) setTitle(f.name.replace(/\.[a-z0-9]+$/i, ""));
       if (previewUrl) URL.revokeObjectURL(previewUrl);
-      if (f.type.startsWith("image/")) {
+      if (effectiveMime.startsWith("image/")) {
         setPreviewUrl(URL.createObjectURL(f));
-      } else if (f.type.startsWith("video/")) {
+      } else if (effectiveMime.startsWith("video/")) {
         setPreviewUrl(URL.createObjectURL(f));
       } else {
         setPreviewUrl(null);
@@ -129,7 +131,7 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
       const id = crypto.randomUUID();
       const safeName = safeFileName(file.name);
       const filePath = `${userId}/${id}/${safeName}`;
-      const contentType = file.type || "application/octet-stream";
+      const contentType = normalizeMimeType(file.type || "application/octet-stream", safeName);
       let thumbPath: string | null = null;
 
       try {
@@ -155,7 +157,7 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
         return;
       }
 
-      if (file.type.startsWith("image/")) {
+      if (contentType.startsWith("image/")) {
         setStage("uploading-preview");
         const previewPath = `${userId}/${id}/preview-${safeName}`;
         const { error: prevErr } = await supabase.storage
@@ -208,6 +210,14 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
     [categories],
   );
 
+  const previewMime = useMemo(
+    () =>
+      file
+        ? normalizeMimeType(file.type || "application/octet-stream", file.name)
+        : "",
+    [file],
+  );
+
   const stageLabel = (() => {
     switch (stage) {
       case "uploading-original":
@@ -238,7 +248,7 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
           <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
             {file ? (
               previewUrl ? (
-                file.type.startsWith("video/") ? (
+                previewMime.startsWith("video/") ? (
                   <video
                     src={previewUrl}
                     controls
@@ -257,10 +267,10 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
                 )
               ) : (
                 <div className="flex max-h-full flex-col items-center gap-3 overflow-y-auto">
-                  <FilePreviewIcon mime={file.type} />
+                  <FilePreviewIcon mime={previewMime} />
                   <div className="break-all px-1 text-center text-sm font-medium">{file.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {formatBytes(file.size)} · {file.type || "unknown"}
+                    {formatBytes(file.size)} · {previewMime || "unknown"}
                   </div>
                 </div>
               )

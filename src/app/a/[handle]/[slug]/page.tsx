@@ -17,11 +17,12 @@ import {
   isImageMime,
   isAudioMime,
   isVideoMime,
+  isPdfMime,
 } from "@/lib/utils";
 import { ASSET_LICENSES, siteConfig } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
 import { getAssetByOwnerAndSlug } from "@/lib/queries";
-import { resolveImageHeroUrl } from "@/lib/asset-hero";
+import { resolveImageHeroUrl, resolvePdfEmbedUrl } from "@/lib/asset-hero";
 import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
 import { format } from "date-fns";
 
@@ -97,6 +98,15 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
     },
     { viewerUserId: user?.id ?? null, ownerId: owner.id },
   );
+  const pdfEmbedUrl = await resolvePdfEmbedUrl(
+    {
+      thumbnail_path: asset.thumbnail_path,
+      file_path: asset.file_path,
+      mime_type: asset.mime_type,
+      status: asset.status,
+    },
+    { viewerUserId: user?.id ?? null, ownerId: owner.id },
+  );
   const category = (asset as unknown as { category: { name: string; slug: string } | null }).category;
 
   const web3 = isWeb3Enabled();
@@ -127,6 +137,12 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                 className="h-auto w-full object-contain"
                 unoptimized
                 priority
+              />
+            ) : isPdfMime(asset.mime_type) && pdfEmbedUrl ? (
+              <iframe
+                title={asset.title}
+                src={pdfEmbedUrl}
+                className="aspect-[4/3] min-h-[min(75vh,720px)] w-full border-0 bg-muted"
               />
             ) : isAudioMime(asset.mime_type) ? (
               <div className="flex aspect-video flex-col items-center justify-center gap-4 p-10">

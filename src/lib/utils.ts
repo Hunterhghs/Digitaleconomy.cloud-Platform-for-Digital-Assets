@@ -55,3 +55,6 @@ export function isVideoMime(mime: string | null | undefined) {
 export function isAudioMime(mime: string | null | undefined) {
   return !!mime && mime.startsWith("audio/");
 }
+export function isPdfMime(mime: string | null | undefined) {
+  return mime?.trim().toLowerCase() === "application/pdf";
+}

@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
 import { publicPreviewUrl } from "@/lib/queries";
-import { isImageMime } from "@/lib/utils";
+import { isImageMime, isPdfMime, isVideoMime } from "@/lib/utils";
 
 type AssetPreviewFields = {
   thumbnail_path: string | null;
@@ -10,24 +10,18 @@ type AssetPreviewFields = {
   status: string;
 };
 
-/**
- * Public preview bucket URL when available; otherwise a short-lived signed URL
- * to the original file for images (published assets, or drafts viewed by owner).
- * Needed when the duplicate upload to `assets-preview` failed silently or was skipped.
- */
-export async function resolveImageHeroUrl(
-  asset: AssetPreviewFields,
-  opts: {
-    viewerUserId: string | null;
-    ownerId: string;
-    /** Open Graph / Twitter cards — never sign originals for non-published assets */
-    forPublicMetadata?: boolean;
-  },
-): Promise<string | null> {
-  const thumb = publicPreviewUrl(asset.thumbnail_path);
-  if (thumb) return thumb;
+type ResolveOpts = {
+  viewerUserId: string | null;
+  ownerId: string;
+  /** Open Graph / Twitter cards — never sign originals for non-published assets */
+  forPublicMetadata?: boolean;
+};
 
-  if (!isImageMime(asset.mime_type) || !asset.file_path) return null;
+async function signedOriginalUrl(
+  asset: AssetPreviewFields,
+  opts: ResolveOpts,
+): Promise<string | null> {
+  if (!asset.file_path) return null;
 
   const published = asset.status === "published";
   const ownerView =
@@ -50,4 +44,31 @@ export async function resolveImageHeroUrl(
 
   if (error || !data?.signedUrl) return null;
   return data.signedUrl;
+}
+
+/**
+ * Public preview bucket URL when the asset is image or video; otherwise a short-lived signed URL
+ * to the original file for images (published assets, or drafts viewed by owner).
+ * Thumbnails are only used when MIME is image/video — avoids treating PDF/doc previews as raster heroes.
+ */
+export async function resolveImageHeroUrl(
+  asset: AssetPreviewFields,
+  opts: ResolveOpts,
+): Promise<string | null> {
+  const mime = asset.mime_type;
+  const thumb = publicPreviewUrl(asset.thumbnail_path);
+  if (thumb && (isImageMime(mime) || isVideoMime(mime))) return thumb;
+
+  if (!isImageMime(mime) || !asset.file_path) return null;
+
+  return signedOriginalUrl(asset, opts);
+}
+
+/** Signed URL for embedding PDFs inline (same visibility rules as image originals). */
+export async function resolvePdfEmbedUrl(
+  asset: AssetPreviewFields,
+  opts: ResolveOpts,
+): Promise<string | null> {
+  if (!isPdfMime(asset.mime_type) || !asset.file_path) return null;
+  return signedOriginalUrl(asset, opts);
 }
