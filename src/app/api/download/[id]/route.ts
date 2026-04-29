@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 const RATE_PER_MINUTE = 30;
 const buckets = new Map<string, { count: number; resetAt: number }>();
@@ -37,7 +37,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (error || !asset) return new NextResponse("Not found", { status: 404 });
   if (asset.status !== "published") return new NextResponse("Not available", { status: 403 });
 
-  const { data: signed, error: signErr } = await supabase.storage
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return new NextResponse("Server configuration error", { status: 500 });
+  }
+
+  const admin = createAdminClient();
+  const { data: signed, error: signErr } = await admin.storage
     .from("assets-original")
     .createSignedUrl(asset.file_path, 60, {
       download:

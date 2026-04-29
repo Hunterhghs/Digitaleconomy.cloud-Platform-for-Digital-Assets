@@ -20,7 +20,8 @@ import {
 } from "@/lib/utils";
 import { ASSET_LICENSES, siteConfig } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
-import { getAssetByOwnerAndSlug, publicPreviewUrl } from "@/lib/queries";
+import { getAssetByOwnerAndSlug } from "@/lib/queries";
+import { resolveImageHeroUrl } from "@/lib/asset-hero";
 import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
 import { format } from "date-fns";
 
@@ -37,7 +38,16 @@ export async function generateMetadata({
   const { asset, owner } = data;
   const title = asset.title;
   const description = asset.description?.slice(0, 200) ?? `A digital asset by @${owner.handle}.`;
-  const ogImage = publicPreviewUrl(asset.thumbnail_path) ?? undefined;
+  const ogImage =
+    (await resolveImageHeroUrl(
+      {
+        thumbnail_path: asset.thumbnail_path,
+        file_path: asset.file_path,
+        mime_type: asset.mime_type,
+        status: asset.status,
+      },
+      { viewerUserId: null, ownerId: asset.owner_id, forPublicMetadata: true },
+    )) ?? undefined;
   return {
     title,
     description,
@@ -68,16 +78,25 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
     liked = !!existing;
   }
 
-  // Bump view count via SECURITY DEFINER RPC so anonymous and non-owner
-  // viewers can also increment it (direct UPDATE is blocked by RLS).
-  await supabase.rpc("increment_view_count", { p_asset_id: asset.id });
-
   if (asset.status !== "published" && user?.id !== owner.id) {
     notFound();
   }
 
+  // Bump view count — only after we know this response will render (published or owner viewing draft).
+  const { data: viewCountAfter } = await supabase.rpc("increment_view_count", {
+    p_asset_id: asset.id,
+  });
+
   const license = ASSET_LICENSES.find((l) => l.id === asset.license);
-  const previewUrl = publicPreviewUrl(asset.thumbnail_path);
+  const heroUrl = await resolveImageHeroUrl(
+    {
+      thumbnail_path: asset.thumbnail_path,
+      file_path: asset.file_path,
+      mime_type: asset.mime_type,
+      status: asset.status,
+    },
+    { viewerUserId: user?.id ?? null, ownerId: owner.id },
+  );
   const category = (asset as unknown as { category: { name: string; slug: string } | null }).category;
 
   const web3 = isWeb3Enabled();
@@ -97,11 +116,11 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
   return (
     <div className="container-page py-8">
       <div className="grid gap-8 lg:grid-cols-[1fr,360px]">
-        <div>
+        <div className="order-2 lg:order-1">
           <div className="overflow-hidden rounded-lg border bg-muted">
-            {isImageMime(asset.mime_type) && previewUrl ? (
+            {isImageMime(asset.mime_type) && heroUrl ? (
               <Image
-                src={previewUrl}
+                src={heroUrl}
                 alt={asset.title}
                 width={1600}
                 height={1200}
@@ -116,9 +135,9 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                   Audio preview is generated after download approval.
                 </p>
               </div>
-            ) : isVideoMime(asset.mime_type) && previewUrl ? (
+            ) : isVideoMime(asset.mime_type) && heroUrl ? (
               <Image
-                src={previewUrl}
+                src={heroUrl}
                 alt={asset.title}
                 width={1600}
                 height={900}
@@ -128,8 +147,13 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
             ) : (
               <div className="flex aspect-video flex-col items-center justify-center gap-4 p-10">
                 <MimeIcon mime={asset.mime_type} className="h-16 w-16 text-muted-foreground" />
-                <div className="text-sm text-muted-foreground">
+                <div className="text-center text-sm text-muted-foreground">
                   No inline preview available for {asset.mime_type}
+                  {isImageMime(asset.mime_type) ? (
+                    <span className="mt-2 block text-xs">
+                      Thumbnails are preferred; without one we try to show the original — check back after a refresh.
+                    </span>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -157,7 +181,7 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
           ) : null}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="order-1 space-y-4 lg:order-2">
           <div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
               {category ? (
@@ -249,7 +273,10 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                 <DT label="Downloads">{formatNumber(asset.download_count)}</DT>
                 <DT label="Views">
                   <span className="inline-flex items-center gap-1">
-                    <Eye className="h-3 w-3" /> {formatNumber(asset.view_count + 1)}
+                    <Eye className="h-3 w-3" />{" "}
+                    {formatNumber(
+                      typeof viewCountAfter === "number" ? viewCountAfter : asset.view_count,
+                    )}
                   </span>
                 </DT>
                 <DT label="Published">

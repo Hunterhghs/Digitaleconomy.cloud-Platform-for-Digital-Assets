@@ -73,7 +73,7 @@ gh repo create digitaleconomy.cloud --public --source=. --remote=origin --push
    - `NEXT_PUBLIC_SITE_NAME=DigitalEconomy.cloud`
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` — server-only; required for signing hero previews when no thumbnail exists and for anonymous downloads of originals from private storage (set on Vercel Production).
    - `RESEND_API_KEY` (optional)
    - `NEXT_PUBLIC_SENTRY_DSN` (optional)
 4. Click **Deploy**.
