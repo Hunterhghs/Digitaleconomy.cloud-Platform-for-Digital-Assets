@@ -61,7 +61,7 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
         setMessage(`Files must be ${MAX_UPLOAD_SIZE_MB} MB or smaller.`);
         return;
       }
-      if (!isAllowedMime(f.type)) {
+      if (!isAllowedMime(f.type, f.name)) {
         setMessage(`Type "${f.type || "unknown"}" isn't currently allowed.`);
         return;
       }
@@ -69,7 +69,13 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
       setFile(f);
       if (!title) setTitle(f.name.replace(/\.[a-z0-9]+$/i, ""));
       if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
+      if (f.type.startsWith("image/")) {
+        setPreviewUrl(URL.createObjectURL(f));
+      } else if (f.type.startsWith("video/")) {
+        setPreviewUrl(URL.createObjectURL(f));
+      } else {
+        setPreviewUrl(null);
+      }
     },
     [title, previewUrl],
   );
@@ -168,6 +174,7 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
       fd.set("file_path", filePath);
       fd.set("mime_type", contentType);
       fd.set("size_bytes", String(file.size));
+      fd.set("original_filename", safeName);
       if (thumbPath) fd.set("thumbnail_path", thumbPath);
       fd.set("title", title);
       fd.set("description", description);
@@ -221,41 +228,55 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
   })();
 
   return (
-    <div className="grid gap-6 md:grid-cols-[1fr,360px]">
+    <div className="grid gap-y-8 gap-x-6 md:grid-cols-[1fr,360px] md:gap-6">
       <div className="grid gap-4">
         <div
           {...getRootProps()}
-          className={`relative flex aspect-video w-full ${
-            isWorking ? "cursor-default" : "cursor-pointer"
-          } flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/30 p-8 text-center transition-colors ${
-            isDragActive ? "border-primary bg-primary/5" : "hover:border-primary/60"
-          }`}
+          className={`relative isolate aspect-video w-full max-h-[min(52vh,400px)] overflow-hidden rounded-lg border-2 border-dashed bg-muted/30 transition-colors md:max-h-none ${isWorking ? "cursor-default" : "cursor-pointer"} ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/35 hover:border-primary/55"}`}
         >
-          <input {...getInputProps()} />
-          {file ? (
-            previewUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt="" className="max-h-full max-w-full rounded object-contain" />
+          <input {...getInputProps()} className="sr-only" aria-label="Choose file to upload" />
+          <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+            {file ? (
+              previewUrl ? (
+                file.type.startsWith("video/") ? (
+                  <video
+                    src={previewUrl}
+                    controls
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="pointer-events-auto max-h-full min-h-0 w-auto max-w-full rounded-sm object-contain"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element -- blob preview
+                  <img
+                    src={previewUrl}
+                    alt=""
+                    className="pointer-events-none max-h-full min-h-0 w-auto max-w-full object-contain"
+                  />
+                )
+              ) : (
+                <div className="flex max-h-full flex-col items-center gap-3 overflow-y-auto">
+                  <FilePreviewIcon mime={file.type} />
+                  <div className="break-all px-1 text-center text-sm font-medium">{file.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatBytes(file.size)} · {file.type || "unknown"}
+                  </div>
+                </div>
+              )
             ) : (
-              <div className="flex flex-col items-center gap-3">
-                <FilePreviewIcon mime={file.type} />
-                <div className="text-sm font-medium">{file.name}</div>
-                <div className="text-xs text-muted-foreground">
-                  {formatBytes(file.size)} · {file.type || "unknown"}
+              <div className="flex flex-col items-center gap-2 px-2">
+                <UploadIcon className="h-10 w-10 text-muted-foreground" />
+                <div className="text-sm font-medium">
+                  {isDragActive ? "Drop the file here" : "Drag & drop or click to choose a file"}
+                </div>
+                <div className="max-w-[280px] text-balance text-xs text-muted-foreground">
+                  Up to {MAX_UPLOAD_SIZE_MB} MB — images, audio, video, PDFs, Office docs, archives,
+                  fonts, 3D, code &amp; text files.
                 </div>
               </div>
-            )
-          ) : (
-            <div className="flex flex-col items-center gap-2">
-              <UploadIcon className="h-10 w-10 text-muted-foreground" />
-              <div className="text-sm font-medium">
-                {isDragActive ? "Drop the file here" : "Drag & drop or click to choose a file"}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Up to {MAX_UPLOAD_SIZE_MB} MB. Images, audio, video, PDFs, fonts, code, archives, and more.
-              </div>
-            </div>
-          )}
+            )}
+          </div>
           {file && !isWorking ? (
             <button
               type="button"
@@ -263,7 +284,7 @@ export function UploadWizard({ categories }: { categories: Category[] }) {
                 e.stopPropagation();
                 reset();
               }}
-              className="absolute right-3 top-3 rounded-full bg-background/80 p-1 text-muted-foreground backdrop-blur hover:text-foreground"
+              className="absolute right-2 top-2 z-10 rounded-full border border-border bg-background/90 p-1.5 text-muted-foreground shadow-sm backdrop-blur hover:text-foreground"
               aria-label="Remove file"
             >
               <X className="h-4 w-4" />

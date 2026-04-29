@@ -39,7 +39,7 @@ export async function uploadAndCreateAsset(
   if (!file || !file.size) return { ok: false, message: "Pick a file to upload." };
   if (file.size > MAX_UPLOAD_SIZE_BYTES)
     return { ok: false, message: `Files must be ${MAX_UPLOAD_SIZE_MB} MB or smaller.` };
-  if (!isAllowedMime(file.type))
+  if (!isAllowedMime(file.type, file.name))
     return { ok: false, message: `File type "${file.type}" is not currently allowed.` };
 
   const tagsRaw = String(formData.get("tags") ?? "");
@@ -127,10 +127,13 @@ export async function finalizeAsset(
   const size = Number(formData.get("size_bytes") ?? 0);
   const thumbPath = (String(formData.get("thumbnail_path") ?? "") || null) as string | null;
 
+  const originalFilename = String(formData.get("original_filename") ?? "");
+  const pathTail = filePath.split("/").pop() ?? "";
   if (!id || !filePath || !size) {
     return { ok: false, message: "Upload incomplete; please try again." };
   }
-  if (!isAllowedMime(mime)) return { ok: false, message: `Type "${mime}" is not allowed.` };
+  if (!isAllowedMime(mime, originalFilename || pathTail))
+    return { ok: false, message: `Type "${mime}" is not allowed.` };
   if (size > MAX_UPLOAD_SIZE_BYTES) return { ok: false, message: `Max ${MAX_UPLOAD_SIZE_MB} MB.` };
 
   return finalizeInsert({
