@@ -59,3 +59,49 @@ export function isPdfMime(mime: string | null | undefined) {
   const m = mime?.trim().toLowerCase() ?? "";
   return m === "application/pdf" || m === "application/x-pdf";
 }
+
+/** Short hint when we cannot embed inline preview (Office, archives, fonts, etc.). */
+export function assetPreviewFallbackHint(mime: string): string | null {
+  const m = mime.trim().toLowerCase();
+  if (!m) return null;
+  if (
+    m.startsWith("application/vnd.openxmlformats") ||
+    m.startsWith("application/vnd.ms-") ||
+    m === "application/msword"
+  ) {
+    return "Download to open in Microsoft Office, LibreOffice, or compatible apps.";
+  }
+  if (m.startsWith("application/vnd.oasis.opendocument")) {
+    return "Download to open in LibreOffice or compatible apps.";
+  }
+  if (
+    m.startsWith("text/") ||
+    m === "application/json" ||
+    m === "application/xml" ||
+    m === "application/yaml"
+  ) {
+    return "Download to view or edit in a text editor or IDE.";
+  }
+  if (m.startsWith("font/")) {
+    return "Download to install or use in design tools.";
+  }
+  if (m.startsWith("model/")) {
+    return "Download for 3D viewers or authoring tools.";
+  }
+  if (
+    m === "application/zip" ||
+    m.includes("rar") ||
+    m.includes("compressed") ||
+    m.includes("gzip") ||
+    m === "application/x-tar"
+  ) {
+    return "Download and extract with your archive utility.";
+  }
+  if (m === "application/epub+zip") {
+    return "Download to open in an e‑reader app.";
+  }
+  if (m === "application/rtf") {
+    return "Download to open in Word or any rich‑text editor.";
+  }
+  return null;
+}

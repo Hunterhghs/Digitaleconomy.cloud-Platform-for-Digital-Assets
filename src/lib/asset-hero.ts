@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/server";
 import { publicPreviewUrl } from "@/lib/queries";
 import { normalizeMimeType } from "@/lib/mime-normalize";
-import { isImageMime, isPdfMime, isVideoMime } from "@/lib/utils";
+import { isAudioMime, isImageMime, isPdfMime, isVideoMime } from "@/lib/utils";
 
 export type AssetPreviewFields = {
   thumbnail_path: string | null;
@@ -76,5 +76,25 @@ export async function resolvePdfEmbedUrl(
 ): Promise<string | null> {
   const mime = normalizedMime(asset);
   if (!isPdfMime(mime) || !asset.file_path) return null;
+  return signedOriginalUrl(asset, opts);
+}
+
+/** Signed URL for HTML5 `<video>` playback (same visibility rules as PDF embed). */
+export async function resolveVideoPlaybackUrl(
+  asset: AssetPreviewFields,
+  opts: ResolveOpts,
+): Promise<string | null> {
+  const mime = normalizedMime(asset);
+  if (!isVideoMime(mime) || !asset.file_path) return null;
+  return signedOriginalUrl(asset, opts);
+}
+
+/** Signed URL for HTML5 `<audio>` playback. */
+export async function resolveAudioPlaybackUrl(
+  asset: AssetPreviewFields,
+  opts: ResolveOpts,
+): Promise<string | null> {
+  const mime = normalizedMime(asset);
+  if (!isAudioMime(mime) || !asset.file_path) return null;
   return signedOriginalUrl(asset, opts);
 }

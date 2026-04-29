@@ -18,12 +18,18 @@ import {
   isAudioMime,
   isVideoMime,
   isPdfMime,
+  assetPreviewFallbackHint,
 } from "@/lib/utils";
 import { ASSET_LICENSES, siteConfig } from "@/lib/site";
 import { createClient } from "@/lib/supabase/server";
-import { getAssetByOwnerAndSlug } from "@/lib/queries";
+import { getAssetByOwnerAndSlug, publicPreviewUrl } from "@/lib/queries";
 import { effectiveMimeFromAsset } from "@/lib/mime-normalize";
-import { resolveImageHeroUrl, resolvePdfEmbedUrl } from "@/lib/asset-hero";
+import {
+  resolveImageHeroUrl,
+  resolvePdfEmbedUrl,
+  resolveVideoPlaybackUrl,
+  resolveAudioPlaybackUrl,
+} from "@/lib/asset-hero";
 import { chainLabel, isWeb3Enabled, txUrl } from "@/lib/web3/chains";
 import { format } from "date-fns";
 
@@ -92,24 +98,25 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
   const license = ASSET_LICENSES.find((l) => l.id === asset.license);
   const mime = effectiveMimeFromAsset(asset.mime_type, asset.file_path);
 
-  const heroUrl = await resolveImageHeroUrl(
-    {
-      thumbnail_path: asset.thumbnail_path,
-      file_path: asset.file_path,
-      mime_type: asset.mime_type,
-      status: asset.status,
-    },
-    { viewerUserId: user?.id ?? null, ownerId: owner.id },
-  );
-  const pdfEmbedUrl = await resolvePdfEmbedUrl(
-    {
-      thumbnail_path: asset.thumbnail_path,
-      file_path: asset.file_path,
-      mime_type: asset.mime_type,
-      status: asset.status,
-    },
-    { viewerUserId: user?.id ?? null, ownerId: owner.id },
-  );
+  const previewFields = {
+    thumbnail_path: asset.thumbnail_path,
+    file_path: asset.file_path,
+    mime_type: asset.mime_type,
+    status: asset.status,
+  };
+  const viewerOpts = { viewerUserId: user?.id ?? null, ownerId: owner.id };
+
+  const [heroUrl, pdfEmbedUrl, videoPlaybackUrl, audioPlaybackUrl] = await Promise.all([
+    resolveImageHeroUrl(previewFields, viewerOpts),
+    resolvePdfEmbedUrl(previewFields, viewerOpts),
+    resolveVideoPlaybackUrl(previewFields, viewerOpts),
+    resolveAudioPlaybackUrl(previewFields, viewerOpts),
+  ]);
+
+  const videoPosterUrl =
+    isVideoMime(mime) && asset.thumbnail_path ? publicPreviewUrl(asset.thumbnail_path) : null;
+
+  const fallbackHint = assetPreviewFallbackHint(mime);
   const category = (asset as unknown as { category: { name: string; slug: string } | null }).category;
 
   const web3 = isWeb3Enabled();
@@ -147,32 +154,35 @@ export default async function AssetDetailPage({ params }: { params: Promise<Para
                 src={`${pdfEmbedUrl}#view=FitH`}
                 className="aspect-[4/3] min-h-[min(75vh,720px)] w-full border-0 bg-muted"
               />
-            ) : isAudioMime(mime) ? (
-              <div className="flex aspect-video flex-col items-center justify-center gap-4 p-10">
-                <MimeIcon mime={mime} className="h-16 w-16 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Audio preview is generated after download approval.
-                </p>
-              </div>
-            ) : isVideoMime(mime) && heroUrl ? (
-              <Image
-                src={heroUrl}
-                alt={asset.title}
-                width={1600}
-                height={900}
-                className="h-auto w-full"
-                unoptimized
+            ) : isVideoMime(mime) && videoPlaybackUrl ? (
+              <video
+                controls
+                playsInline
+                preload="metadata"
+                poster={videoPosterUrl ?? undefined}
+                className="max-h-[min(85vh,900px)] w-full bg-black object-contain"
+                src={videoPlaybackUrl}
               />
+            ) : isAudioMime(mime) && audioPlaybackUrl ? (
+              <div className="flex flex-col justify-center gap-5 p-8">
+                <MimeIcon mime={mime} className="mx-auto h-14 w-14 text-muted-foreground" />
+                <audio controls preload="metadata" className="mx-auto w-full max-w-xl" src={audioPlaybackUrl} />
+              </div>
             ) : (
               <div className="flex aspect-video flex-col items-center justify-center gap-4 p-10">
                 <MimeIcon mime={mime} className="h-16 w-16 text-muted-foreground" />
-                <div className="text-center text-sm text-muted-foreground">
-                  No inline preview available for {mime}
-                  {isImageMime(mime) ? (
-                    <span className="mt-2 block text-xs">
-                      Thumbnails are preferred; without one we try to show the original — check back after a refresh.
-                    </span>
+                <div className="max-w-md text-center text-sm text-muted-foreground">
+                  <p>No inline preview for this type.</p>
+                  {fallbackHint ? (
+                    <p className="mt-2 text-xs leading-relaxed">{fallbackHint}</p>
                   ) : null}
+                  {isImageMime(mime) ? (
+                    <p className="mt-2 block text-xs">
+                      For images without a thumbnail we try the original — refresh if needed.
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-xs">Use Download to save and open with your preferred app.</p>
+                  )}
                 </div>
               </div>
             )}
